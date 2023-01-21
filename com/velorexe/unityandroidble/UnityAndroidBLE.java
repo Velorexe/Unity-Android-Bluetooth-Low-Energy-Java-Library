@@ -1,6 +1,7 @@
 package com.velorexe.unityandroidble;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -22,6 +23,7 @@ import androidx.annotation.RequiresApi;
 
 import com.unity3d.player.UnityPlayer;
 import com.velorexe.unityandroidble.connection.ConnectionRunnable;
+import com.velorexe.unityandroidble.connection.ConnectionService;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,10 +49,11 @@ public class UnityAndroidBLE {
     public static LeDeviceListAdapter mLeDeviceListAdapter = null;
     private static Map<BluetoothDevice, BluetoothGatt> mLeGattServers = null;
 
+    private static Map<BluetoothDevice, ConnectionService> mConnectedServers = null;
+
     public static boolean mScanning = false;
     private Handler handler = new Handler();
 
-    private static final boolean IS_ANDROID = false;
     private static Context mContext;
 
     /**
@@ -73,6 +76,7 @@ public class UnityAndroidBLE {
             mLeDeviceListAdapter = new LeDeviceListAdapter();
 
             mLeGattServers = new HashMap<BluetoothDevice, BluetoothGatt>();
+            mConnectedServers = new HashMap<BluetoothDevice, ConnectionService>();
         }
 
         mContext = UnityPlayer.currentActivity.getApplicationContext();
@@ -129,6 +133,7 @@ public class UnityAndroidBLE {
         mLeDeviceListAdapter = new LeDeviceListAdapter();
 
         mLeGattServers = new HashMap<BluetoothDevice, BluetoothGatt>();
+        mConnectedServers = new HashMap<BluetoothDevice, ConnectionService>();
     }
 
     //region Scanning
@@ -204,14 +209,15 @@ public class UnityAndroidBLE {
         BluetoothDevice device = mLeDeviceListAdapter.getItem(deviceUuid);
         BleObject obj = new BleObject("StartConnection");
 
-        if (device != null) {
+        if (device != null && !mConnectedServers.containsKey(device)) {
             obj.device = device.getAddress();
 
             sendToUnity(obj);
 
-            ConnectionRunnable connector = new ConnectionRunnable(this, device, mContext);
+            ConnectionService service = new ConnectionService(this);
+            device.connectGatt(UnityPlayer.currentActivity.getApplicationContext(), true, service.gattCallback);
 
-            new Thread(connector).start();
+            mConnectedServers.put(device, service);
         } else {
             obj.setError("BluetoothDevice hasn't been discovered yet");
             sendToUnity(obj);
@@ -236,13 +242,19 @@ public class UnityAndroidBLE {
     }
 
     public void disconnectDevice(String deviceAddress) {
-        BluetoothGatt gatt = mLeGattServers.get(mLeDeviceListAdapter.getItem(deviceAddress));
+        BluetoothDevice device = mLeDeviceListAdapter.getItem(deviceAddress);
+        BluetoothGatt gatt = mLeGattServers.get(device);
 
         BleObject obj = new BleObject("DisconnectedFromGattServer");
-        obj.device = deviceAddress;
+        obj.device = device.getAddress();
 
-        if (gatt != null)
+        if (gatt != null) {
+            gatt.close();
             gatt.disconnect();
+
+            mConnectedServers.remove(mLeDeviceListAdapter.getItem(deviceAddress));
+            mLeGattServers.remove(device);
+        }
         else {
             obj.setError("Can't find connected device with address " + deviceAddress);
         }
@@ -256,12 +268,7 @@ public class UnityAndroidBLE {
      * @param gattServer the GattServer that the device lost connection to
      */
     public void disconnectedFromGattServer(BluetoothGatt gattServer) {
-        gattServer.close();
-
-        BleObject obj = new BleObject("DisconnectedFromGattServer");
-        obj.device = gattServer.getDevice().getAddress();
-
-        sendToUnity(obj);
+        disconnectDevice(gattServer.getDevice().getAddress());
     }
     //endregion
 
@@ -349,6 +356,14 @@ public class UnityAndroidBLE {
         UUID gattUUID = UUID.fromString("0000" + characteristic + "-0000-1000-8000-00805f9b34fb");
         BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
 
+        UUID descriptorUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+        BluetoothGattDescriptor gattDescriptor = gattCharacteristic.getDescriptor(descriptorUUID);
+
+        gattDescriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+
+        gattDescriptor.setValue(new byte[]{0x00, 0x00});
+        gattServer.writeDescriptor(gattDescriptor);
+
         BleObject obj = new BleObject("StartedUnsubscribingFromCharacteristic");
 
         if (gattServer.setCharacteristicNotification(gattCharacteristic, false)) {
@@ -361,11 +376,6 @@ public class UnityAndroidBLE {
         }
 
         sendToUnity(obj);
-
-        UUID descriptorUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-        BluetoothGattDescriptor gattDescriptor = gattCharacteristic.getDescriptor(descriptorUUID);
-
-        gattDescriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
     }
 
     public void subscribeToCustomGattCharacteristic(String device, String service, String characteristic) {
@@ -461,9 +471,10 @@ public class UnityAndroidBLE {
         UUID gattUUID = UUID.fromString("0000" + characteristic + "-0000-1000-8000-00805f9b34fb");
         BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
 
-        gattCharacteristic.getValue();
+        gattServer.readCharacteristic(gattCharacteristic);
     }
 
+    @SuppressLint("MissingPermission")
     public void readFromCustomCharacteristic(String device, String service, String characteristic) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -474,11 +485,12 @@ public class UnityAndroidBLE {
         UUID gattUUID = UUID.fromString(characteristic);
         BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
 
-        gattCharacteristic.getValue();
+        gattServer.readCharacteristic(gattCharacteristic);
     }
     //endregion
 
     //region Writing
+    @SuppressLint("MissingPermission")
     public void writeToGattCharacteristic(String device, String service, String characteristic, byte[] message) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -489,9 +501,7 @@ public class UnityAndroidBLE {
         UUID gattUUID = UUID.fromString("0000" + characteristic + "-0000-1000-8000-00805f9b34fb");
         BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
 
-        gattCharacteristic.setValue(message);
-
-        gattServer.writeCharacteristic(gattCharacteristic);
+        gattServer.readCharacteristic(gattCharacteristic);
     }
 
     public void writeToGattCharacteristic(String device, String service, String characteristic, String message) {
@@ -522,20 +532,6 @@ public class UnityAndroidBLE {
         BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
 
         gattCharacteristic.setValue(decodedBytes);
-        gattServer.writeCharacteristic(gattCharacteristic);
-    }
-
-    public void writeToCustomGattCharacteristic(String device, String service, String characteristic, byte[] message) {
-        BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
-        BluetoothGatt gattServer = mLeGattServers.get(bDevice);
-
-        UUID serviceUUID = UUID.fromString(service);
-        BluetoothGattService gattService = gattServer.getService(serviceUUID);
-
-        UUID gattUUID = UUID.fromString(characteristic);
-        BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
-
-        gattCharacteristic.setValue(message);
         gattServer.writeCharacteristic(gattCharacteristic);
     }
     //endregion

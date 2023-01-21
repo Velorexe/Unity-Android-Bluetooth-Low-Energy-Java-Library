@@ -37,11 +37,11 @@ public class BleObject {
             obj.put("service", service);
             obj.put("characteristic", characteristic);
 
-            obj.put("base64_message", base64Message);
+            obj.put("base64Message", base64Message);
 
             if(hasError) {
-                obj.put("has_error", hasError);
-                obj.put("error_message", errorMessage);
+                obj.put("hasError", hasError);
+                obj.put("errorMessage", errorMessage);
             }
 
             return obj.toString();

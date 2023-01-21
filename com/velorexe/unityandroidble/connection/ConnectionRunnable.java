@@ -24,6 +24,6 @@ public class ConnectionRunnable implements Runnable {
 
     @Override
     public void run() {
-        mDevice.connectGatt(mApplicationContext, true, mService.gattCallback);
+
     }
 }

@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothManager;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.IBinder;
 import android.util.Base64;
 
@@ -43,7 +44,7 @@ public class ConnectionService {
     public int connectionState = 0;
     private final UnityAndroidBLE mUnityAndroidBLE;
 
-    ConnectionService(UnityAndroidBLE bleManager) {
+    public ConnectionService(UnityAndroidBLE bleManager) {
         mUnityAndroidBLE = bleManager;
     }
 
@@ -87,7 +88,8 @@ public class ConnectionService {
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             byte[] data = characteristic.getValue();
-            BleObject obj = new BleObject("ReadCharacteristic");
+
+            BleObject obj = new BleObject("ReadFromCharacteristic");
 
             obj.device = gatt.getDevice().getAddress();
             obj.service = characteristic.getService().getUuid().toString();
