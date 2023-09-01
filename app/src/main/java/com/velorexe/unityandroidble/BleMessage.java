@@ -31,6 +31,16 @@ public class BleMessage {
         this.errorMessage = errorMessage;
     }
 
+    public BleMessage setService(String service) {
+        this.service = service;
+        return this;
+    }
+
+    public BleMessage setCharacteristic(String characteristic) {
+        this.characteristic = characteristic;
+        return this;
+    }
+
     public String toJson() {
         JSONObject obj = new JSONObject();
 
