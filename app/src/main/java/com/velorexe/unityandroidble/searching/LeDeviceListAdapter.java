@@ -1,4 +1,4 @@
-package com.velorexe.unityandroidble;
+package com.velorexe.unityandroidble.searching;
 
 import android.bluetooth.BluetoothDevice;
 

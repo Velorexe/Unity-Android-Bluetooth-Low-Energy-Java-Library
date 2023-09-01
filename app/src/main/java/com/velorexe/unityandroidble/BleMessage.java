@@ -3,7 +3,9 @@ package com.velorexe.unityandroidble;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class BleObject {
+public class BleMessage {
+
+    public String id;
     public String command;
 
     public String device;
@@ -12,12 +14,15 @@ public class BleObject {
     public String service;
     public String characteristic;
 
-    public String base64Message;
+    public byte[] data;
+
+    public String jsonData;
 
     public boolean hasError = false;
     public String errorMessage;
 
-    public BleObject(String command) {
+    public BleMessage(String id, String command) {
+        this.id = id;
         this.command = command;
     }
 
@@ -28,7 +33,9 @@ public class BleObject {
 
     public String toJson() {
         JSONObject obj = new JSONObject();
+
         try {
+            obj.put("id", id);
             obj.put("command", command);
 
             obj.put("device", device);
@@ -37,7 +44,8 @@ public class BleObject {
             obj.put("service", service);
             obj.put("characteristic", characteristic);
 
-            obj.put("base64Message", base64Message);
+            obj.put("data", data);
+            obj.put("jsonData", jsonData);
 
             if(hasError) {
                 obj.put("hasError", hasError);
@@ -46,7 +54,7 @@ public class BleObject {
 
             return obj.toString();
         }
-        catch(JSONException e){
+        catch(JSONException e) {
             e.printStackTrace();
         }
 
