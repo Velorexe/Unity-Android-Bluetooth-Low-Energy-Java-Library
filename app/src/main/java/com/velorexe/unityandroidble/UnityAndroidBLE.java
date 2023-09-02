@@ -7,9 +7,12 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanSettings;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -19,6 +22,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.ParcelUuid;
 
 import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
@@ -28,8 +32,10 @@ import com.velorexe.unityandroidble.connecting.BluetoothLeService;
 import com.velorexe.unityandroidble.searching.LeDeviceListAdapter;
 import com.velorexe.unityandroidble.searching.LeScanCallback;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -139,8 +145,48 @@ public class UnityAndroidBLE {
                 sendTaskResponse(message);
             }, scanPeriod);
 
-            mIsScanning = true;
             mBluetoothLeScanner.startScan(mScanCallback);
+            mIsScanning = true;
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
+    public void searchForBleDevicesWithFilter(String taskId, int scanPeriod,
+                                              String deviceUuid,
+                                              String deviceName,
+                                              String serviceUuid) {
+        if (!mIsScanning) {
+            mScanCallback.setCallbackId(taskId);
+            mHandler.postDelayed(() -> {
+                mIsScanning = false;
+                mBluetoothLeScanner.stopScan(mScanCallback);
+
+                BleMessage message = new BleMessage(taskId, "searchStop");
+                sendTaskResponse(message);
+            }, scanPeriod);
+
+            ScanFilter.Builder filter = new ScanFilter.Builder();
+
+            if(!deviceUuid.isEmpty()) {
+                filter.setDeviceAddress(deviceUuid);
+            }
+
+            if(!deviceName.isEmpty()) {
+                filter.setDeviceName(deviceName);
+            }
+
+            if(!serviceUuid.isEmpty()) {
+                filter.setServiceUuid(ParcelUuid.fromString(serviceUuid));
+            }
+
+            ScanSettings.Builder settings = new ScanSettings.Builder();
+
+            List<ScanFilter> scanFilters = new ArrayList<>();
+            scanFilters.add(filter.build());
+
+            mBluetoothLeScanner.startScan(scanFilters, settings.build(), mScanCallback);
+            mIsScanning = true;
         }
     }
 
@@ -177,14 +223,14 @@ public class UnityAndroidBLE {
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
 
                 // Something goes wrong with reading if this is false
-                if(!gatt.readCharacteristic(characteristic)) {
+                if(gatt.readCharacteristic(characteristic)) {
+                    characteristic.getValue();
+                    leService.registerRead(characteristic, taskId);
+                } else {
                     BleMessage msg = new BleMessage(taskId, "readFromCharacteristic");
                     msg.setError("Can't read from Characteristic, are you sure the Characteristic is readable?");
 
                     sendTaskResponse(msg);
-                } else {
-                    characteristic.getValue();
-                    leService.registerRead(characteristic, taskId);
                 }
             } else {
                 BleMessage msg = new BleMessage(taskId, "readFromCharacteristic");
@@ -227,6 +273,47 @@ public class UnityAndroidBLE {
         } else {
             BleMessage msg = new BleMessage(taskId, "writeToCharacteristic");
             msg.setError("Can't write to a Characteristic of a BluetoothDevice that hasn't been discovered yet.");
+
+            sendTaskResponse(msg);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
+    public void subscribeToCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
+        BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
+
+        if(device != null) {
+            BluetoothLeService leService = mConnectedServers.get(device);
+
+            if(leService != null && leService.DeviceGatt != null) {
+                BluetoothGatt gatt = leService.DeviceGatt;
+
+                BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
+
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+
+                // If either of these values is false, something went wrong
+                if(gatt.writeDescriptor(descriptor) || gatt.setCharacteristicNotification(characteristic, true)) {
+                    BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
+                    sendTaskResponse(msg);
+                } else {
+                    BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
+                    msg.setError("Can't subscribe to Characteristic, are you sure the Characteristic has Notifications or Indicate properties?");
+
+                    sendTaskResponse(msg);
+                }
+            } else {
+                BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
+                msg.setError("Can't subscribe to a Characteristic of a BluetoothDevice that isn't connected to the device.");
+
+                sendTaskResponse(msg);
+            }
+        } else {
+            BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
+            msg.setError("Can't subscribe to a Characteristic of a BluetoothDevice that hasn't been discovered yet.");
 
             sendTaskResponse(msg);
         }

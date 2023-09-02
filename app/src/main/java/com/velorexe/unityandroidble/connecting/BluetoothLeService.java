@@ -158,18 +158,14 @@ public class BluetoothLeService {
         }
 
         @Override
-        public void onCharacteristicChanged(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value) {
-            super.onCharacteristicChanged(gatt, characteristic, value);
-        }
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value) {
+            if(mCharTask.containsKey(characteristic)) {
+                BleMessage msg = createBleMessage(mCharTask.get(characteristic), "characteristicValueChanged", gatt.getDevice());
+                msg.setService(characteristic.getService().getUuid().toString()).setCharacteristic(characteristic.getUuid().toString());
 
-        @Override
-        public void onDescriptorRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattDescriptor descriptor, int status, @NonNull byte[] value) {
-            super.onDescriptorRead(gatt, descriptor, status, value);
-        }
-
-        @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            super.onDescriptorWrite(gatt, descriptor, status);
+                msg.base64Data = Base64.encodeToString(value, 0);
+                mUnityAndroidBle.sendTaskResponse(msg);
+            }
         }
     };
 }
