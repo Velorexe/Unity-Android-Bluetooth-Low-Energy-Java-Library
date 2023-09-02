@@ -35,8 +35,6 @@ import java.util.UUID;
 
 public class UnityAndroidBLE {
 
-    private final int SDK_INT = Build.VERSION.SDK_INT;
-
     private static UnityAndroidBLE mInstance = null;
 
     private BluetoothAdapter mBluetoothAdapter = null;
@@ -49,8 +47,8 @@ public class UnityAndroidBLE {
     private Handler mHandler = null;
 
     private final LeScanCallback mScanCallback;
-    private LeDeviceListAdapter mDeviceListAdapter = new LeDeviceListAdapter();
-    private Map<BluetoothDevice, BluetoothLeService> mConnectedServers = new HashMap<BluetoothDevice, BluetoothLeService>();
+    private final LeDeviceListAdapter mDeviceListAdapter = new LeDeviceListAdapter();
+    private final Map<BluetoothDevice, BluetoothLeService> mConnectedServers = new HashMap<BluetoothDevice, BluetoothLeService>();
 
     public UnityAndroidBLE() {
         mContext = UnityPlayer.currentActivity.getApplicationContext();
@@ -60,6 +58,7 @@ public class UnityAndroidBLE {
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
+        int SDK_INT = Build.VERSION.SDK_INT;
         if (SDK_INT <= Build.VERSION_CODES.S &&
                 mContext.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
                 !mBluetoothAdapter.isEnabled()) {
@@ -165,38 +164,6 @@ public class UnityAndroidBLE {
 
     @SuppressLint("MissingPermission")
     // UnityAndroidBLE can't be created without the proper Permissions
-    public void writeToCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid, byte[] data) {
-        BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
-
-        if(device != null) {
-            BluetoothLeService leService = mConnectedServers.get(device);
-
-            if(leService != null && leService.DeviceGatt != null) {
-                BluetoothGatt gatt = leService.DeviceGatt;
-
-                BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
-                BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
-
-                characteristic.setValue(data);
-                gatt.writeCharacteristic(characteristic);
-
-                leService.registerWrite(characteristic, taskId);
-            } else {
-                BleMessage msg = new BleMessage(taskId, "writeToCharacteristic");
-                msg.setError("Can't write to a Characteristic of a BluetoothDevice that isn't connected to the device.");
-
-                sendTaskResponse(msg);
-            }
-        } else {
-            BleMessage msg = new BleMessage(taskId, "writeToCharacteristic");
-            msg.setError("Can't write to a Characteristic of a BluetoothDevice that hasn't been discovered yet.");
-
-            sendTaskResponse(msg);
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    // UnityAndroidBLE can't be created without the proper Permissions
     public void readFromCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
         BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
 
@@ -216,8 +183,41 @@ public class UnityAndroidBLE {
 
                     sendTaskResponse(msg);
                 } else {
+                    characteristic.getValue();
                     leService.registerRead(characteristic, taskId);
                 }
+            } else {
+                BleMessage msg = new BleMessage(taskId, "readFromCharacteristic");
+                msg.setError("Can't write to a Characteristic of a BluetoothDevice that isn't connected to the device.");
+
+                sendTaskResponse(msg);
+            }
+        } else {
+            BleMessage msg = new BleMessage(taskId, "readFromCharacteristic");
+            msg.setError("Can't write to a Characteristic of a BluetoothDevice that hasn't been discovered yet.");
+
+            sendTaskResponse(msg);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
+    public void writeToCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid, byte[] data) {
+        BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
+
+        if(device != null) {
+            BluetoothLeService leService = mConnectedServers.get(device);
+
+            if(leService != null && leService.DeviceGatt != null) {
+                BluetoothGatt gatt = leService.DeviceGatt;
+
+                BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
+
+                characteristic.setValue(data);
+                gatt.writeCharacteristic(characteristic);
+
+                leService.registerWrite(characteristic, taskId);
             } else {
                 BleMessage msg = new BleMessage(taskId, "writeToCharacteristic");
                 msg.setError("Can't write to a Characteristic of a BluetoothDevice that isn't connected to the device.");

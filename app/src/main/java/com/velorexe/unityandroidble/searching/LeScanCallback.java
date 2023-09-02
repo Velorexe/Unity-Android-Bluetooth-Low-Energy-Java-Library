@@ -10,8 +10,8 @@ import com.velorexe.unityandroidble.UnityAndroidBLE;
 
 public class LeScanCallback extends ScanCallback {
 
-    private LeDeviceListAdapter mDeviceListAdapter;
-    private UnityAndroidBLE mUnityAndroidBle;
+    private final LeDeviceListAdapter mDeviceListAdapter;
+    private final UnityAndroidBLE mUnityAndroidBle;
     private String mCallbackId;
 
     public LeScanCallback(LeDeviceListAdapter adapter, UnityAndroidBLE manager) {

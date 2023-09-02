@@ -13,6 +13,7 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -125,13 +126,13 @@ public class BluetoothLeService {
         }
 
         @Override
-        public void onCharacteristicRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value, int status) {
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             if (mCharTask.containsKey(characteristic)) {
                 BleMessage msg = createBleMessage(mCharTask.get(characteristic), "readFromCharacteristic", gatt.getDevice());
                 msg.setService(characteristic.getService().getUuid().toString()).setCharacteristic(characteristic.getUuid().toString());
 
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    msg.data = value;
+                    msg.base64Data = Base64.encodeToString(characteristic.getValue(), 0);
                     mUnityAndroidBle.sendTaskResponse(msg);
 
                     mCharTask.remove(characteristic);

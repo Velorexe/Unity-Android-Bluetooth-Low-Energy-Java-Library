@@ -12,6 +12,7 @@ import java.util.List;
 public class ServiceDataMappers {
 
     public static String mapServicesToJson(List<BluetoothGattService> services) {
+        JSONObject dataWrapper = new JSONObject();
         JSONArray serviceArray = new JSONArray();
 
         try {
@@ -40,11 +41,12 @@ public class ServiceDataMappers {
                 serviceObject.put("characteristics", characteristicArray);
 
                 serviceArray.put(serviceObject);
+                dataWrapper.put("data", serviceArray);
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
 
-        return serviceArray.toString();
+        return dataWrapper.toString();
     }
 }

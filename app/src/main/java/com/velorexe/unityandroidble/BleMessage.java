@@ -14,7 +14,7 @@ public class BleMessage {
     public String service;
     public String characteristic;
 
-    public byte[] data;
+    public String base64Data;
 
     public String jsonData;
 
@@ -54,7 +54,7 @@ public class BleMessage {
             obj.put("service", service);
             obj.put("characteristic", characteristic);
 
-            obj.put("data", data);
+            obj.put("base64Data", base64Data);
             obj.put("jsonData", jsonData);
 
             if(hasError) {
