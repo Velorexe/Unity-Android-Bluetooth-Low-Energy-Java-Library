@@ -293,12 +293,13 @@ public class UnityAndroidBLE {
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
 
                 BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
-                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
 
                 // If either of these values is false, something went wrong
-                if(gatt.writeDescriptor(descriptor) || gatt.setCharacteristicNotification(characteristic, true)) {
+                if(descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) && gatt.writeDescriptor(descriptor) && gatt.setCharacteristicNotification(characteristic, true)) {
                     BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
                     sendTaskResponse(msg);
+
+                    leService.registerSubscribe(characteristic, taskId);
                 } else {
                     BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
                     msg.setError("Can't subscribe to Characteristic, are you sure the Characteristic has Notifications or Indicate properties?");
