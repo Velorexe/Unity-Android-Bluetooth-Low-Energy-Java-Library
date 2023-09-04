@@ -210,6 +210,43 @@ public class UnityAndroidBLE {
 
     @SuppressLint("MissingPermission")
     // UnityAndroidBLE can't be created without the proper Permissions
+    public void changeMtuSize(String taskId, String macAddress, int mtuSize) {
+        BluetoothDevice device = mDeviceListAdapter.getItem(macAddress);
+
+        if(device != null) {
+            BluetoothLeService leService = mConnectedServers.get(device);
+
+            if(leService != null) {
+                if(leService.DeviceGatt.requestMtu(mtuSize)) {
+                    BleMessage msg = new BleMessage(taskId, "requestMtuSize");
+
+                    msg.device = device.getAddress().toString();
+                    msg.name = device.getName();
+
+                    sendTaskResponse(msg);
+
+                } else {
+                    BleMessage msg = new BleMessage(taskId, "requestMtuSize");
+                    msg.setError("Couldn't set the MTU size of the BluetoothDevice.");
+
+                    sendTaskResponse(msg);
+                }
+            } else {
+                BleMessage msg = new BleMessage(taskId, "requestMtuSize");
+                msg.setError("Can't set the MTU size of a BluetoothDevice that hasn't been connected to the device.");
+
+                sendTaskResponse(msg);
+            }
+        } else {
+            BleMessage msg = new BleMessage(taskId, "requestMtuSize");
+            msg.setError("Can't set the MTU size of a BluetoothDevice that hasn't been discovered yet.");
+
+            sendTaskResponse(msg);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
     public void readFromCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
         BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
 
@@ -315,6 +352,48 @@ public class UnityAndroidBLE {
         } else {
             BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
             msg.setError("Can't subscribe to a Characteristic of a BluetoothDevice that hasn't been discovered yet.");
+
+            sendTaskResponse(msg);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
+    public void unsubscribeFromCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
+        BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
+
+        if(device != null) {
+            BluetoothLeService leService = mConnectedServers.get(device);
+
+            if(leService != null && leService.DeviceGatt != null) {
+                BluetoothGatt gatt = leService.DeviceGatt;
+
+                BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
+
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+
+                // If either of these values is false, something went wrong
+                if(descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) && gatt.writeDescriptor(descriptor) && gatt.setCharacteristicNotification(characteristic, false)) {
+                    BleMessage msg = new BleMessage(taskId, "unsubscribeToCharacteristic");
+                    sendTaskResponse(msg);
+
+                    leService.unregisterSubscribe(characteristic);
+                } else {
+                    BleMessage msg = new BleMessage(taskId, "unsubscribeToCharacteristic");
+                    msg.setError("Can't unsubscribe from Characteristic, are you sure the Characteristic has Notifications or Indicate properties?");
+
+                    sendTaskResponse(msg);
+                }
+            } else {
+                BleMessage msg = new BleMessage(taskId, "unsubscribeToCharacteristic");
+                msg.setError("Can't unsubscribe from Characteristic of a BluetoothDevice that isn't connected to the device.");
+
+                sendTaskResponse(msg);
+            }
+        } else {
+            BleMessage msg = new BleMessage(taskId, "unsubscribeToCharacteristic");
+            msg.setError("Can't unsubscribe from Characteristic of a BluetoothDevice that hasn't been discovered yet.");
 
             sendTaskResponse(msg);
         }

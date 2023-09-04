@@ -41,6 +41,8 @@ public class BluetoothLeService {
 
     private Map<BluetoothGattCharacteristic, String> mCharTask = new HashMap<>();
 
+    private String mMtuSizeTaskId = "";
+
     public void registerRead(BluetoothGattCharacteristic characteristic, String taskId) {
         if (mCharTask.containsKey(characteristic)) {
             BleMessage msg = new BleMessage(taskId, "readFromCharacteristic");
@@ -72,6 +74,25 @@ public class BluetoothLeService {
         }
 
         mCharTask.put(characteristic, taskId);
+    }
+
+    public void unregisterSubscribe(BluetoothGattCharacteristic characteristic) {
+        if(mCharTask.containsKey(characteristic)) {
+            BleMessage msg = createBleMessage(mCharTask.get(characteristic), "unsubscribeFromCharacteristic", DeviceGatt.getDevice());
+            mUnityAndroidBle.sendTaskResponse(msg);
+
+            mCharTask.remove(characteristic);
+        }
+    }
+
+    public void registerMtuSizeTask(String taskId) {
+        if(mMtuSizeTaskId.isEmpty()) {
+            mMtuSizeTaskId = taskId;
+        }
+    }
+
+    public void unRegisterMtuSizeTask() {
+        mMtuSizeTaskId = "";
     }
 
     @SuppressLint("MissingPermission")
@@ -164,6 +185,19 @@ public class BluetoothLeService {
                 msg.setService(characteristic.getService().getUuid().toString()).setCharacteristic(characteristic.getUuid().toString());
 
                 msg.base64Data = Base64.encodeToString(characteristic.getValue(), 0);
+                mUnityAndroidBle.sendTaskResponse(msg);
+            }
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            BleMessage msg = createBleMessage(mMtuSizeTaskId, "requestMtuSize", DeviceGatt.getDevice());
+            msg.base64Data = mtu + "";
+
+            if(status == BluetoothGatt.GATT_SUCCESS) {
+                mUnityAndroidBle.sendTaskResponse(msg);
+            } else {
+                msg.setError("Could not set the MTU size of the BLE device.");
                 mUnityAndroidBle.sendTaskResponse(msg);
             }
         }
