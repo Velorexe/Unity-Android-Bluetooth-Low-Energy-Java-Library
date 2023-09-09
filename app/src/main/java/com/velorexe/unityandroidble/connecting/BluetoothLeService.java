@@ -57,7 +57,7 @@ public class BluetoothLeService {
     public void registerWrite(BluetoothGattCharacteristic characteristic, String taskId) {
         if (mCharTask.containsKey(characteristic)) {
             BleMessage msg = new BleMessage(taskId, "writeToCharacteristic");
-            msg.setError("You're queueing tasks too fast, wait until the previous read task is done.");
+            msg.setError("You're queueing tasks too fast, wait until the previous write task is done.");
 
             mUnityAndroidBle.sendTaskResponse(msg);
         }
@@ -68,7 +68,7 @@ public class BluetoothLeService {
     public void registerSubscribe(BluetoothGattCharacteristic characteristic, String taskId) {
         if (mCharTask.containsKey(characteristic)) {
             BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
-            msg.setError("You're queueing tasks too fast, wait until the previous read task is done.");
+            msg.setError("You're queueing tasks too fast, wait until the previous subscribe task is done.");
 
             mUnityAndroidBle.sendTaskResponse(msg);
         }
@@ -200,6 +200,8 @@ public class BluetoothLeService {
                 msg.setError("Could not set the MTU size of the BLE device.");
                 mUnityAndroidBle.sendTaskResponse(msg);
             }
+
+            unRegisterMtuSizeTask();
         }
     };
 }

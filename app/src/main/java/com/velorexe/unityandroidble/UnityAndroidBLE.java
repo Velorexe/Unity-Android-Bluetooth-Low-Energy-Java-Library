@@ -13,9 +13,11 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanSettings;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -40,13 +42,13 @@ import java.util.Map;
 import java.util.UUID;
 
 public class UnityAndroidBLE {
-
     private static UnityAndroidBLE mInstance = null;
 
     private BluetoothAdapter mBluetoothAdapter = null;
     private BluetoothManager mBluetoothManager = null;
     private BluetoothLeScanner mBluetoothLeScanner = null;
 
+    private final int SDK_INT = Build.VERSION.SDK_INT;
     private Context mContext = null;
 
     private boolean mIsScanning = false;
@@ -64,7 +66,6 @@ public class UnityAndroidBLE {
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
-        int SDK_INT = Build.VERSION.SDK_INT;
         if (SDK_INT <= Build.VERSION_CODES.S &&
                 mContext.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
                 !mBluetoothAdapter.isEnabled()) {
@@ -76,6 +77,24 @@ public class UnityAndroidBLE {
         // Setup for scanning BLE devices
         mHandler = new Handler(Looper.getMainLooper());
         mScanCallback = new LeScanCallback(mDeviceListAdapter, this);
+
+        BroadcastReceiver mReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+
+                if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                    BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                    short deviceRssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
+
+                    if (device != null && deviceRssi != Short.MIN_VALUE) {
+                        mDeviceListAdapter.setOrAdd(device, deviceRssi);
+                    }
+                }
+            }
+        };
+
+        mContext.registerReceiver(mReceiver, new IntentFilter(BluetoothDevice.ACTION_FOUND));
     }
 
     public static UnityAndroidBLE getInstance() {
@@ -146,6 +165,8 @@ public class UnityAndroidBLE {
             }, scanPeriod);
 
             mBluetoothLeScanner.startScan(mScanCallback);
+            mBluetoothAdapter.startDiscovery();
+
             mIsScanning = true;
         }
     }
@@ -168,15 +189,15 @@ public class UnityAndroidBLE {
 
             ScanFilter.Builder filter = new ScanFilter.Builder();
 
-            if(!deviceUuid.isEmpty()) {
+            if (!deviceUuid.isEmpty()) {
                 filter.setDeviceAddress(deviceUuid);
             }
 
-            if(!deviceName.isEmpty()) {
+            if (!deviceName.isEmpty()) {
                 filter.setDeviceName(deviceName);
             }
 
-            if(!serviceUuid.isEmpty()) {
+            if (!serviceUuid.isEmpty()) {
                 filter.setServiceUuid(ParcelUuid.fromString(serviceUuid));
             }
 
@@ -186,7 +207,33 @@ public class UnityAndroidBLE {
             scanFilters.add(filter.build());
 
             mBluetoothLeScanner.startScan(scanFilters, settings.build(), mScanCallback);
+            mBluetoothAdapter.startDiscovery();
+
             mIsScanning = true;
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
+    public void getRssiForDevice(String taskId, String deviceAddress) {
+        BluetoothDevice device = mDeviceListAdapter.getItem(deviceAddress);
+
+        if (device != null) {
+            short rssi = mDeviceListAdapter.getRssi(device);
+
+            BleMessage msg = new BleMessage(taskId, "getRssiForDevice");
+
+            msg.device = device.getAddress().toString();
+            msg.name = device.getName();
+
+            msg.base64Data = rssi + "";
+
+            sendTaskResponse(msg);
+        } else {
+            BleMessage msg = new BleMessage(taskId, "getRssiForDevice");
+            msg.setError("Can't connect to a BluetoothDevice that hasn't been discovered yet.");
+
+            sendTaskResponse(msg);
         }
     }
 
@@ -213,17 +260,19 @@ public class UnityAndroidBLE {
     public void changeMtuSize(String taskId, String macAddress, int mtuSize) {
         BluetoothDevice device = mDeviceListAdapter.getItem(macAddress);
 
-        if(device != null) {
+        if (device != null) {
             BluetoothLeService leService = mConnectedServers.get(device);
 
-            if(leService != null) {
-                if(leService.DeviceGatt.requestMtu(mtuSize)) {
+            if (leService != null) {
+                if (leService.DeviceGatt.requestMtu(mtuSize)) {
                     BleMessage msg = new BleMessage(taskId, "requestMtuSize");
 
                     msg.device = device.getAddress().toString();
                     msg.name = device.getName();
 
                     sendTaskResponse(msg);
+
+                    leService.registerMtuSizeTask(taskId);
 
                 } else {
                     BleMessage msg = new BleMessage(taskId, "requestMtuSize");
@@ -250,18 +299,23 @@ public class UnityAndroidBLE {
     public void readFromCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
         BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
 
-        if(device != null) {
+        if (device != null) {
             BluetoothLeService leService = mConnectedServers.get(device);
 
-            if(leService != null && leService.DeviceGatt != null) {
+            if (leService != null && leService.DeviceGatt != null) {
                 BluetoothGatt gatt = leService.DeviceGatt;
 
                 BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
 
                 // Something goes wrong with reading if this is false
-                if(gatt.readCharacteristic(characteristic)) {
-                    characteristic.getValue();
+                if (gatt.readCharacteristic(characteristic)) {
+                    if (SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                        characteristic.getValue();
+                    } else {
+                        gatt.readCharacteristic(characteristic);
+                    }
+
                     leService.registerRead(characteristic, taskId);
                 } else {
                     BleMessage msg = new BleMessage(taskId, "readFromCharacteristic");
@@ -288,17 +342,21 @@ public class UnityAndroidBLE {
     public void writeToCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid, byte[] data) {
         BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
 
-        if(device != null) {
+        if (device != null) {
             BluetoothLeService leService = mConnectedServers.get(device);
 
-            if(leService != null && leService.DeviceGatt != null) {
+            if (leService != null && leService.DeviceGatt != null) {
                 BluetoothGatt gatt = leService.DeviceGatt;
 
                 BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(characteristicUuid));
 
-                characteristic.setValue(data);
-                gatt.writeCharacteristic(characteristic);
+                if (SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    characteristic.setValue(data);
+                    gatt.writeCharacteristic(characteristic);
+                } else {
+                    gatt.writeCharacteristic(characteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                }
 
                 leService.registerWrite(characteristic, taskId);
             } else {
@@ -320,10 +378,10 @@ public class UnityAndroidBLE {
     public void subscribeToCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
         BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
 
-        if(device != null) {
+        if (device != null) {
             BluetoothLeService leService = mConnectedServers.get(device);
 
-            if(leService != null && leService.DeviceGatt != null) {
+            if (leService != null && leService.DeviceGatt != null) {
                 BluetoothGatt gatt = leService.DeviceGatt;
 
                 BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
@@ -332,7 +390,7 @@ public class UnityAndroidBLE {
                 BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
 
                 // If either of these values is false, something went wrong
-                if(descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) && gatt.writeDescriptor(descriptor) && gatt.setCharacteristicNotification(characteristic, true)) {
+                if (descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) && gatt.writeDescriptor(descriptor) && gatt.setCharacteristicNotification(characteristic, true)) {
                     BleMessage msg = new BleMessage(taskId, "subscribeToCharacteristic");
                     sendTaskResponse(msg);
 
@@ -362,10 +420,10 @@ public class UnityAndroidBLE {
     public void unsubscribeFromCharacteristic(String taskId, String deviceUuid, String serviceUuid, String characteristicUuid) {
         BluetoothDevice device = mDeviceListAdapter.getItem(deviceUuid);
 
-        if(device != null) {
+        if (device != null) {
             BluetoothLeService leService = mConnectedServers.get(device);
 
-            if(leService != null && leService.DeviceGatt != null) {
+            if (leService != null && leService.DeviceGatt != null) {
                 BluetoothGatt gatt = leService.DeviceGatt;
 
                 BluetoothGattService service = gatt.getService(UUID.fromString(serviceUuid));
@@ -374,7 +432,7 @@ public class UnityAndroidBLE {
                 BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
 
                 // If either of these values is false, something went wrong
-                if(descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) && gatt.writeDescriptor(descriptor) && gatt.setCharacteristicNotification(characteristic, false)) {
+                if (descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) && gatt.writeDescriptor(descriptor) && gatt.setCharacteristicNotification(characteristic, false)) {
                     BleMessage msg = new BleMessage(taskId, "unsubscribeToCharacteristic");
                     sendTaskResponse(msg);
 
