@@ -259,7 +259,7 @@ public class UnityAndroidBLE {
     // UnityAndroidBLE can't be created without the proper Permissions
     public void disconnectFromBleDevice(String taskId, String macAddress) {
         BluetoothDevice device = mDeviceListAdapter.getItem(macAddress);
-        BleMessage msg = new BleMessage(taskId, "disconnectFromDevice");
+        BleMessage msg = new BleMessage(taskId, "disconnectedFromDevice");
 
         if (device != null) {
             BluetoothLeService service = mConnectedServers.get(device);
