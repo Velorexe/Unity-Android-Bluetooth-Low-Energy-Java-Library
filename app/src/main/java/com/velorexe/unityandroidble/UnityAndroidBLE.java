@@ -257,6 +257,31 @@ public class UnityAndroidBLE {
 
     @SuppressLint("MissingPermission")
     // UnityAndroidBLE can't be created without the proper Permissions
+    public void disconnectFromBleDevice(String taskId, String macAddress) {
+        BluetoothDevice device = mDeviceListAdapter.getItem(macAddress);
+        BleMessage msg = new BleMessage(taskId, "disconnectFromDevice");
+
+        if (device != null) {
+            BluetoothLeService service = mConnectedServers.get(device);
+
+            if (service != null) {
+                service.DeviceGatt.disconnect();
+                mConnectedServers.remove(device);
+
+                msg.device = macAddress;
+                msg.name = device.getName();
+            } else {
+                msg.setError("Can't disconnect from BluetoothDevice if no proper connection has been made yet.");
+            }
+        } else {
+            msg.setError("Can't disconnect from BluetoothDevice that hasn't been discovered yet.");
+        }
+
+        sendTaskResponse(msg);
+    }
+
+    @SuppressLint("MissingPermission")
+    // UnityAndroidBLE can't be created without the proper Permissions
     public void changeMtuSize(String taskId, String macAddress, int mtuSize) {
         BluetoothDevice device = mDeviceListAdapter.getItem(macAddress);
 
