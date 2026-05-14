@@ -18,9 +18,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.util.Base64;
 import android.util.Log;
-
-import androidx.annotation.RequiresApi;
-
+import android.annotation.TargetApi;
 import com.unity3d.player.UnityPlayer;
 import com.velorexe.unityandroidble.connection.ConnectionRunnable;
 import com.velorexe.unityandroidble.connection.ConnectionService;
@@ -61,7 +59,6 @@ public class UnityAndroidBLE {
      *
      * @return UnityAndroidBLE manager
      */
-    @RequiresApi(api = Build.VERSION_CODES.M)
     public static UnityAndroidBLE getInstance() {
         if (mInstance == null) {
             mInstance = new UnityAndroidBLE();
@@ -69,7 +66,7 @@ public class UnityAndroidBLE {
         //Reset in case that it already exists
         else {
             mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-            mBluetoothAdapter.enable();
+            //mBluetoothAdapter.enable();
 
             mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
@@ -91,15 +88,22 @@ public class UnityAndroidBLE {
         }
 
         //Enable Bluetooth if it isn't enabled
-        if (!mBluetoothAdapter.isEnabled())
-            mBluetoothAdapter.enable();
+        if (!mBluetoothAdapter.isEnabled()) {
+            try {
+                mBluetoothAdapter.enable();
+            } catch (SecurityException e) {
+                BleObject obj = new BleObject("Initialized");
 
+                obj.setError("Permission error");
+                sendToUnity(obj);
+                return mInstance;
+            }
+        }
         sendToUnity(new BleObject("Initialized"));
 
         return mInstance;
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     public static void checkPermissions(Context context, Activity activity) {
         if (context.checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED
                 || context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
@@ -110,6 +114,8 @@ public class UnityAndroidBLE {
         }
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public static void deInitialize() {
         //Close all the connected Gatt Servers
         for (Map.Entry<BluetoothDevice, BluetoothGatt> set : mLeGattServers.entrySet()) {
@@ -123,12 +129,11 @@ public class UnityAndroidBLE {
      * Constructor for UnityAndroidBLE
      * Enables Bluetooth and creates instances for properties
      */
-    @RequiresApi(api = Build.VERSION_CODES.M)
     public UnityAndroidBLE() {
         checkPermissions(UnityPlayer.currentActivity.getApplicationContext(), UnityPlayer.currentActivity);
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        mBluetoothAdapter.enable();
+        //mBluetoothAdapter.enable();
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
@@ -145,6 +150,8 @@ public class UnityAndroidBLE {
      *
      * @param scanPeriod the period of time the device scans for
      */
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void scanBleDevices(int scanPeriod) {
         if (!mScanning) {
             this.handler.postDelayed(new Runnable() {
@@ -182,16 +189,21 @@ public class UnityAndroidBLE {
                     if (mLeDeviceListAdapter.AddDevice(device)) {
                         BleObject obj = new BleObject("DiscoveredDevice");
                         obj.device = device.getAddress();
-
-                        if (device.getName() != null) {
-                            obj.name = device.getName();
+                        try {
+                            if (device.getName() != null) {
+                                obj.name = device.getName();
+                            }
                         }
-
+                        catch(SecurityException e){
+                            obj.setError(e.toString());
+                        }
                         sendToUnity(obj);
                     }
                 }
             };
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void stopScanBleDevices() {
         if (mScanning) {
             mBluetoothLeScanner.stopScan(bleScanCallback);
@@ -207,6 +219,8 @@ public class UnityAndroidBLE {
      *
      * @param deviceUuid the UUID of the device that the BluetoothAdapter should connect to
      */
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void connectToDevice(final String deviceUuid) {
         BluetoothDevice device = mLeDeviceListAdapter.getItem(deviceUuid);
         BleObject obj = new BleObject("StartConnection");
@@ -243,6 +257,8 @@ public class UnityAndroidBLE {
         sendToUnity(obj);
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void disconnectDevice(String deviceAddress) {
         BluetoothDevice device = mLeDeviceListAdapter.getItem(deviceAddress);
         BluetoothGatt gatt = mLeGattServers.get(device);
@@ -317,6 +333,8 @@ public class UnityAndroidBLE {
      * @param service        the UUID of the service under which the Characteristic is specified
      * @param characteristic the UUID of the Characteristic to subscribe to
      */
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void subscribeToGattCharacteristic(String device, String service, String characteristic) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -348,6 +366,8 @@ public class UnityAndroidBLE {
         sendToUnity(obj);
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void unsubscribeFromGattCharacteristic(String device, String service, String characteristic) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -380,6 +400,8 @@ public class UnityAndroidBLE {
         sendToUnity(obj);
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void subscribeToCustomGattCharacteristic(String device, String service, String characteristic) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -395,7 +417,7 @@ public class UnityAndroidBLE {
 
         gattDescriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
 
-        gattDescriptor.setValue(new byte[]{0x01, 0x00});
+        //gattDescriptor.setValue(new byte[]{0x01, 0x00});
         gattServer.writeDescriptor(gattDescriptor);
 
         BleObject obj = new BleObject("StartedSubscribingToCharacteristic");
@@ -411,6 +433,8 @@ public class UnityAndroidBLE {
         sendToUnity(obj);
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void unsubscribeFromCustomGattCharacteristic(String device, String service, String characteristic) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -463,6 +487,8 @@ public class UnityAndroidBLE {
         sendToUnity(obj);
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void readFromCharacteristic(String device, String service, String characteristic) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -507,6 +533,8 @@ public class UnityAndroidBLE {
         gattServer.writeCharacteristic(gattCharacteristic);
     }
 
+    @SuppressLint("MissingPermission")
+    @SuppressWarnings("unused")
     public void writeToGattCharacteristic(String device, String service, String characteristic, String message) {
         BluetoothDevice bDevice = mLeDeviceListAdapter.getItem(device);
         BluetoothGatt gattServer = mLeGattServers.get(bDevice);
@@ -535,7 +563,12 @@ public class UnityAndroidBLE {
         BluetoothGattCharacteristic gattCharacteristic = gattService.getCharacteristic(gattUUID);
 
         gattCharacteristic.setValue(decodedBytes);
-        gattServer.writeCharacteristic(gattCharacteristic);
+        try {
+            gattServer.writeCharacteristic(gattCharacteristic);
+        }
+        catch (SecurityException e){
+
+        }
     }
     //endregion
 

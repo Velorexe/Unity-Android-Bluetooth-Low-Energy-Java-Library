@@ -1,5 +1,6 @@
 package com.velorexe.unityandroidble.connection;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
@@ -55,6 +56,7 @@ public class ConnectionService {
 
     public final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
+        @SuppressLint("MissingPermission")
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             if (newState == 2) {
                 String intentAction = ACTION_GATT_CONNECTED;
@@ -74,6 +76,7 @@ public class ConnectionService {
         }
 
         @Override
+        @SuppressLint("MissingPermission")
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 mUnityAndroidBLE.discoveredService(gatt);
