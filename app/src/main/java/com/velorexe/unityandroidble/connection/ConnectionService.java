@@ -1,5 +1,6 @@
 package com.velorexe.unityandroidble.connection;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
@@ -10,7 +11,6 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Base64;
-
 import androidx.annotation.Nullable;
 
 import com.velorexe.unityandroidble.BleObject;
@@ -55,6 +55,7 @@ public class ConnectionService {
 
     public final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
+        @SuppressLint("MissingPermission")
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             if (newState == 2) {
                 String intentAction = ACTION_GATT_CONNECTED;
@@ -74,6 +75,7 @@ public class ConnectionService {
         }
 
         @Override
+        @SuppressLint("MissingPermission")
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 mUnityAndroidBLE.discoveredService(gatt);
@@ -97,12 +99,47 @@ public class ConnectionService {
 
             obj.base64Message = Base64.encodeToString(data, 0);
 
+            if( status != BluetoothGatt.GATT_SUCCESS ){
+                obj.hasError = true;
+                obj.errorMessage = "Failed to read characteristic";
+            }
+
+            UnityAndroidBLE.sendToUnity(obj);
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status){
+            byte[] data = characteristic.getValue();
+
+            BleObject obj = new BleObject("CharacteristicWrite");
+
+            obj.device = gatt.getDevice().getAddress();
+            obj.service = characteristic.getService().getUuid().toString();
+            obj.characteristic = characteristic.getUuid().toString();
+
+            obj.base64Message = Base64.encodeToString(data, 0);
+            if( status != BluetoothGatt.GATT_SUCCESS ){
+                obj.hasError = true;
+                obj.errorMessage = "Failed to write to characteristic";
+            }
             UnityAndroidBLE.sendToUnity(obj);
         }
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            super.onDescriptorWrite(gatt, descriptor, status);
+            //super.onDescriptorWrite(gatt, descriptor, status);
+            byte[] data = descriptor.getValue();
+
+            BleObject obj = new BleObject("DescriptorWrite");
+
+            obj.device = gatt.getDevice().getAddress();
+            obj.service = descriptor.getCharacteristic().getService().getUuid().toString();
+            obj.characteristic = descriptor.getCharacteristic().getUuid().toString();
+            obj.descriptor = descriptor.getUuid().toString();
+
+            obj.base64Message = Base64.encodeToString(data, 0);
+
+            UnityAndroidBLE.sendToUnity(obj);
         }
     };
 }
