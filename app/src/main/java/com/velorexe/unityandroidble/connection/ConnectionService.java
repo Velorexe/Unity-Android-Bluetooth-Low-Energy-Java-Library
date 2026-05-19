@@ -99,6 +99,29 @@ public class ConnectionService {
 
             obj.base64Message = Base64.encodeToString(data, 0);
 
+            if( status != BluetoothGatt.GATT_SUCCESS ){
+                obj.hasError = true;
+                obj.errorMessage = "Failed to read characteristic";
+            }
+
+            UnityAndroidBLE.sendToUnity(obj);
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status){
+            byte[] data = characteristic.getValue();
+
+            BleObject obj = new BleObject("CharacteristicWrite");
+
+            obj.device = gatt.getDevice().getAddress();
+            obj.service = characteristic.getService().getUuid().toString();
+            obj.characteristic = characteristic.getUuid().toString();
+
+            obj.base64Message = Base64.encodeToString(data, 0);
+            if( status != BluetoothGatt.GATT_SUCCESS ){
+                obj.hasError = true;
+                obj.errorMessage = "Failed to write to characteristic";
+            }
             UnityAndroidBLE.sendToUnity(obj);
         }
 
