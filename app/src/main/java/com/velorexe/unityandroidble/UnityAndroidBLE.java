@@ -52,13 +52,14 @@ public class UnityAndroidBLE {
     public static boolean mScanning = false;
     private Handler handler = new Handler();
 
-    private static Context mContext;
+    //private Context mContext;
 
     /**
      * Gets called by Unity to Initialize the UnityAndroidBLE library
      *
      * @return UnityAndroidBLE manager
      */
+    @SuppressWarnings("unused")
     public static UnityAndroidBLE getInstance() {
         if (mInstance == null) {
             mInstance = new UnityAndroidBLE();
@@ -76,10 +77,10 @@ public class UnityAndroidBLE {
             mConnectedServers = new HashMap<BluetoothDevice, ConnectionService>();
         }
 
-        mContext = UnityPlayer.currentActivity.getApplicationContext();
+        Context context = UnityPlayer.currentActivity.getApplicationContext();
 
         //Checks to see if the device features Bluetooth Low Energy
-        if (!mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+        if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             BleObject obj = new BleObject("Initialized");
 
             obj.setError("Device doesn't support Bluetooth Low Energy");

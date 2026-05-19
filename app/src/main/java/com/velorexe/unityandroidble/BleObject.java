@@ -12,6 +12,8 @@ public class BleObject {
     public String service;
     public String characteristic;
 
+    public String descriptor;
+
     public String base64Message;
 
     public boolean hasError = false;
@@ -36,6 +38,7 @@ public class BleObject {
 
             obj.put("service", service);
             obj.put("characteristic", characteristic);
+            obj.put("descriptor", descriptor);
 
             obj.put("base64Message", base64Message);
 

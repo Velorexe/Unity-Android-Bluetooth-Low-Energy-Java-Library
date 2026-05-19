@@ -11,7 +11,6 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Base64;
-
 import androidx.annotation.Nullable;
 
 import com.velorexe.unityandroidble.BleObject;
@@ -105,7 +104,19 @@ public class ConnectionService {
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            super.onDescriptorWrite(gatt, descriptor, status);
+            //super.onDescriptorWrite(gatt, descriptor, status);
+            byte[] data = descriptor.getValue();
+
+            BleObject obj = new BleObject("DescriptorWrite");
+
+            obj.device = gatt.getDevice().getAddress();
+            obj.service = descriptor.getCharacteristic().getService().getUuid().toString();
+            obj.characteristic = descriptor.getCharacteristic().getUuid().toString();
+            obj.descriptor = descriptor.getUuid().toString();
+
+            obj.base64Message = Base64.encodeToString(data, 0);
+
+            UnityAndroidBLE.sendToUnity(obj);
         }
     };
 }
